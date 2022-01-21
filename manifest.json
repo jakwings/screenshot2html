@@ -1,0 +1,45 @@
+{
+  "manifest_version": 2,
+  "version": "1.0.2",
+  "name": "__MSG_Extension_Name__",
+  "description": "__MSG_Extension_Description__",
+  "author": "https://github.com/jakwings/screenshot2html",
+  "default_locale": "en",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{20220220-2202-8179-8def-c2cc235ad62f}",
+      "strict_min_version": "52.0"
+    }
+  },
+  "background": {
+    "scripts": [
+      "utils.js",
+      "config.js",
+      "background.js"
+    ]
+  },
+  "content_scripts": [
+    {
+      "js": [ "contentscript.js" ],
+      "run_at": "document_start",
+      "matches": [ "<all_urls>" ]
+    }
+  ],
+  "options_ui": {
+    "page": "options.html"
+  },
+  "browser_action": {
+    "default_icon": "icons/icon.png",
+    "browser_style": true
+  },
+  "icons": {
+    "48": "icons/icon.png"
+  },
+  "permissions": [
+    "<all_urls>",
+    "tabs",
+    "downloads",
+    "notifications",
+    "storage"
+  ]
+}

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Screenshot2HTML: Options</title>
+  </head>
+  <body>
+    <div>•
+      <label for="option_url" i18n-text="Option_URL"></label>
+      <input id="option_url" type="checkbox">
+    </div>
+    <div>•
+      <label for="option_jpeg" i18n-text="Option_JPEG"></label>
+      <input id="option_jpeg" type="checkbox">
+    </div>
+    <div>•
+      <label for="option_quality" i18n-text="Option_JPEG_Quality"></label>
+      <input id="option_quality" type="number" min="1" max="100" step="1" required placeholder="80">
+    </div>
+    <pre id="error" style="color: red"></pre>
+    <script src="utils.js"></script>
+    <script src="config.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

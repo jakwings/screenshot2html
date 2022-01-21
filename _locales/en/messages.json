@@ -1,0 +1,66 @@
+{
+  "Extension_Name": {
+    "message": "Screenshot2HTML"
+  },
+  "Extension_Description": {
+    "message": "Take a full page screenshot and save it as a single page HTML file."
+  },
+  "Option_URL": {
+    "message": "Include origin's URL in HTML file"
+  },
+  "Option_JPEG": {
+    "message": "Save screenshots in JPEG file format"
+  },
+  "Option_JPEG_Quality": {
+    "message": "Quality of JPEG images:"
+  },
+  "Notice_Screenshot_Large": {
+    "message": "Taking screenshot: $TITLE$",
+    "placeholders": {
+      "title": {
+        "content": "$1"
+      }
+    }
+  },
+  "Download_Failure": {
+    "message": "Download failed: $FILE$",
+    "placeholders": {
+      "file": {
+        "content": "$1"
+      }
+    }
+  },
+  "Download_Success": {
+    "message": "Downloaded: $FILE$",
+    "placeholders": {
+      "file": {
+        "content": "$1"
+      }
+    }
+  },
+  "Badge_Capturing": {
+    "message": "Capturing screen content"
+  },
+  "Badge_Saving": {
+    "message": "Saving screenshots"
+  },
+  "Error_Invalid": {
+    "message": "Invalid page: \"$TITLE$\"\nURL: $URL$",
+    "placeholders": {
+      "title": {
+        "content": "$1"
+      },
+      "url": {
+        "content": "$2"
+      }
+    }
+  },
+  "Error": {
+    "message": "Error: $MESSAGE$",
+    "placeholders": {
+      "message": {
+        "content": "$1"
+      }
+    }
+  }
+}
