@@ -1,6 +1,6 @@
 {
   "manifest_version": 2,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "name": "__MSG_Extension_Name__",
   "description": "__MSG_Extension_Description__",
   "author": "https://github.com/jakwings/screenshot2html",
