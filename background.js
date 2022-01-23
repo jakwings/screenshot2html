@@ -15,7 +15,7 @@ function CreateHTML$({title, url, grid, direction}) {
   line-height: 0;
 }
 :root {
-  background: url('data:image/svg+xml,%3csvg xmlns="http://www.w3.org/2000/svg" width="10" height="10"%3e%3crect width="10" height="10" fill="rgb(255,255,255)"/%3e%3cpath d="m 5 0 5 5 -5 5 -5 -5 5 -5 z" fill="rgb(230,230,230)"/%3e%3c/svg%3e');
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="rgb(255,255,255)"/><path d="m 5 0 5 5 -5 5 -5 -5 5 -5 z" fill="rgb(230,230,230)"/></svg>');
 }
 :root::after {
   content: "";
@@ -118,8 +118,9 @@ browser.downloads.onChanged.addListener(async (delta) => {
 browser.browserAction.onClicked.addListener(async (tab) => {
   // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Browser_support_for_JavaScript_APIs
   const BROWSER_VERSION_MAJOR = parseInt((await browser.runtime.getBrowserInfo()).version, 10);
+  const browserAction = browser.browserAction;
   const badge = ['setTitle', 'setBadgeText', 'setBadgeBackgroundColor'].every(v => {
-    return v in browser.browserAction;
+    return v in browserAction;
   });
 
   const mutex = new Mutex({lock_time: 1000 * 60 * 5});
@@ -134,7 +135,7 @@ browser.browserAction.onClicked.addListener(async (tab) => {
     if (!(await mutex.lock(key, {retry: false}))) {
       return;
     }
-    browser.browserAction.disable(tab.id);
+    await browserAction.disable(tab.id);
 
     const config = await Config.get();
 
@@ -173,20 +174,41 @@ browser.browserAction.onClicked.addListener(async (tab) => {
                         || (scale == 1 && CanvasRenderingContext2D.prototype.drawWindow));
     const use_css_croll = !use_native;
     const use_js_scroll = !use_native && !use_css_croll;
-    const js_scroll_restore = `window.scrollTo(${sx + spx}, ${sy + spy})`;
     console.info({use_native, use_css_croll, use_js_scroll, BROWSER_VERSION_MAJOR});
 
+    const js_scroll_restore = `window.scrollTo(${sx + spx}, ${sy + spy})`;
+    const css_animation = {
+      allFrames: true,
+      runAt: 'document_start',
+      code: '*, *>*, *>*>* { animation-play-state: paused !important; }',
+    };
+    if (BROWSER_VERSION_MAJOR >= 53) {
+      css_animation.cssOrigin = 'user';
+    }
+
+    let resetScrollPosition = () => {
+      // TODO: stop js and svg animation
+      return browser.tabs.insertCSS(tab.id, css_animation).then(() => {
+        // reset position of sticky elements
+        return browser.tabs.executeScript(tab.id, {
+          runAt: 'document_start',
+          code: 'window.scrollTo(0, 0)',
+        });
+      });
+    };
     let restoreScrollPosition = () => {
       restoreScrollPosition = () => {};
-      return browser.tabs.executeScript(tab.id, {
-        runAt: 'document_start',
-        code: js_scroll_restore,
+      return browser.tabs.removeCSS(tab.id, css_animation).then(() => {
+        return browser.tabs.executeScript(tab.id, {
+          runAt: 'document_start',
+          code: js_scroll_restore,
+        });
       });
     };
     let updateScrollPosition = null;
 
     if (use_css_croll) {
-      let tasks = [];
+      let tasks = [() => browser.tabs.removeCSS(tab.id, css_animation)];
       restoreScrollPosition = () => {
         restoreScrollPosition = () => {};
         return Promise.all(tasks.map(exec => exec())).then(() => {
@@ -226,7 +248,6 @@ browser.browserAction.onClicked.addListener(async (tab) => {
                 translate: calc(${xyz[0]} - ${x}px) calc(${xyz[1]} - ${y}px)
                            ${xyz[2]} !important;
                 transition: none !important;
-                animation: none !important;
                 background-position-x: ${bgx} !important;
                 background-position-y: ${bgy} !important;
               }
@@ -273,7 +294,6 @@ browser.browserAction.onClicked.addListener(async (tab) => {
               :root {
                 transform: ${toCSS(x, y)} !important;
                 transition: none !important;
-                animation: none !important;
                 background-position-x: ${bgx} !important;
                 background-position-y: ${bgy} !important;
               }
@@ -340,18 +360,13 @@ browser.browserAction.onClicked.addListener(async (tab) => {
 
     let grid = [];
     {
-      // reset position of sticky elements
-      await browser.tabs.executeScript(tab.id, {
-        runAt: 'document_start',
-        code: 'window.scrollTo(0, 0)',
-      });
-
       if (badge) {
-        browser.browserAction.setTitle({title: T$('Badge_Capturing'), tabId: tab.id});
-        browser.browserAction.setBadgeBackgroundColor({color: 'red', tabId: tab.id});
+        await browserAction.setTitle({title: T$('Badge_Capturing'), tabId: tab.id});
+        await browserAction.setBadgeBackgroundColor({color: 'red', tabId: tab.id});
       }
       let total = Math.ceil(pw / mw) * Math.ceil(ph / mh), count = 0;
 
+      await resetScrollPosition();
       for (let y = 0; y < ph; y += mh) {
         let h = (y + mh <= ph ? mh : ph - y);
         let row = [];
@@ -361,7 +376,7 @@ browser.browserAction.onClicked.addListener(async (tab) => {
           let _sy = dir.y > 0 ? y : Math.min(-(ph - y) + vh, vh - h);
           let job = null, i = count++;
           if (badge) {
-            browser.browserAction.setBadgeText({text: String(total--), tabId: tab.id});
+            await browserAction.setBadgeText({text: String(total--), tabId: tab.id});
           }
           if (use_native) {
             if (BROWSER_VERSION_MAJOR >= 82) {
@@ -423,11 +438,11 @@ browser.browserAction.onClicked.addListener(async (tab) => {
         grid.push(row);
       }
       if (badge) {
-        browser.browserAction.setTitle({title: T$('Badge_Saving'), tabId: tab.id});
-        browser.browserAction.setBadgeText({text: '...', tabId: tab.id});
-        browser.browserAction.setBadgeBackgroundColor({color: 'green', tabId: tab.id});
+        await browserAction.setTitle({title: T$('Badge_Saving'), tabId: tab.id});
+        await browserAction.setBadgeText({text: '...', tabId: tab.id});
+        await browserAction.setBadgeBackgroundColor({color: 'green', tabId: tab.id});
       }
-      restoreScrollPosition();
+      await restoreScrollPosition();
     }
     await Promise.all(jobs.splice(0));
     {
@@ -483,7 +498,6 @@ browser.browserAction.onClicked.addListener(async (tab) => {
     } else {
       notify(T$('Error', err));
     }
-    restoreScrollPosition();
     object_ids.forEach(id => {
       delete downloads[id];
       browser.downloads.cancel(id);
@@ -491,15 +505,20 @@ browser.browserAction.onClicked.addListener(async (tab) => {
     object_urls.forEach(url => {
       URL.revokeObjectURL(url);
     });
+    await restoreScrollPosition();
   } finally {
     if (await mutex.lock(key, {retry: false})) {
       if (badge) {
-        browser.browserAction.setTitle({title: '', tabId: tab.id});
-        browser.browserAction.setBadgeText({text: '', tabId: tab.id});
-        browser.browserAction.setBadgeBackgroundColor({color: '', tabId: tab.id});
+        await browserAction.setTitle({title: '', tabId: tab.id});
+        await browserAction.setBadgeText({text: '', tabId: tab.id});
+        try {
+          await browserAction.setBadgeBackgroundColor({color: null, tabId: tab.id});
+        } catch (err) {
+          await browserAction.setBadgeBackgroundColor({color: '', tabId: tab.id});
+        }
       }
-      setTimeout(() => {
-        browser.browserAction.enable(tab.id);
+      setTimeout(async () => {
+        await browserAction.enable(tab.id);
         mutex.unlock(key);
       }, Math.max(1000 - (Date.now() - date.getTime()), 0));
     }
