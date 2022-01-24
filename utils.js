@@ -25,6 +25,10 @@ function abort(err) {
   }
 }
 
+function ignore() {
+  return;
+}
+
 function notify(message = '', {title = T$('Extension_Name'), id = ''} = {}) {
   return browser.notifications.create(id, {
     type: 'basic',
@@ -69,6 +73,32 @@ function HtmlEscape$(str) {
 }
 
 ///* Miscellaneous *////////////////////////////////////////////////////
+
+class JobQueue {
+  constructor() {
+    this.queue = [];
+  }
+  push(func) {
+    this.queue.push(func);
+  }
+  parallel() {
+    return Promise.all(this.queue.splice(0).map(exec => exec()));
+  }
+  async serial() {
+    let result = [];
+    while (this.queue.length > 0) {
+      result = this.queue.shift().apply(null, result);
+      if (result instanceof Promise) {
+        await result.then(function () {
+          result = Array.from(arguments);
+        });
+      } else {
+        result = [result];
+      }
+    }
+    return result;
+  }
+}
 
 // only works for timers and promises in the same page
 class Mutex {

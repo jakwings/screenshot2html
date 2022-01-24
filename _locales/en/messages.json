@@ -15,23 +15,31 @@
     "message": "Quality of JPEG images:"
   },
   "Notice_Screenshot_Large": {
-    "message": "Taking screenshot: $TITLE$",
+    "message": "Taking a large screenshot: $TITLE$",
     "placeholders": {
       "title": {
         "content": "$1"
       }
     }
   },
-  "Download_Failure": {
-    "message": "Download failed: $FILE$",
+  "Screenshot_Timeout": {
+    "message": "Screenshot timeout: $FILE$",
     "placeholders": {
       "file": {
         "content": "$1"
       }
     }
   },
-  "Download_Success": {
-    "message": "Downloaded: $FILE$",
+  "Screenshot_Failure": {
+    "message": "Screenshot failed: $FILE$",
+    "placeholders": {
+      "file": {
+        "content": "$1"
+      }
+    }
+  },
+  "Screenshot_Success": {
+    "message": "Screenshot done: $FILE$",
     "placeholders": {
       "file": {
         "content": "$1"

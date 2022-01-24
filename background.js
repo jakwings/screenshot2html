@@ -53,6 +53,7 @@ function CreateHTML$({title, url, grid, direction}) {
 // https://www.w3.org/TR/2016/WD-cssom-view-1-20160317/#dom-document-scrollingelement
 // https://dom.spec.whatwg.org/#dom-document-compatmode
 async function MeasurePage$(tab) {
+  // TODO: take a screenshot of an iframe or any scrolling element
   return browser.tabs.executeScript(tab.id, {
     runAt: 'document_start',
     code: `{
@@ -64,7 +65,7 @@ async function MeasurePage$(tab) {
       const {scrollX: sx, scrollY: sy} = window;
       const [_sx, _sy] = [sx, sy].map(Math.trunc);
       const [spx, spy] = [sx - _sx, sy - _sy];
-      const [bw, bh] = [ww - cw, ww - ch];
+      const [bw, bh] = [ww - cw, wh - ch];
 
       ({
         // tab.title is file:///* when the local html has no title set
@@ -77,7 +78,7 @@ async function MeasurePage$(tab) {
         // view width/height (excluding scrollbar width/height)
         view: {width: cw, height: ch},
         // page width/height
-        page: {width:  sw, height: sh},
+        page: {width: (sw || ww), height: (sh || wh)},
         // subpixel-precise decimal, negative when Right2Left or Bottom2Top
         scroll: {sx: _sx, sy: _sy, spx, spy},
         // scrollbar width/height
@@ -95,26 +96,6 @@ async function MeasurePage$(tab) {
 }
 
 
-const downloads = Object.create(null);
-
-browser.downloads.onChanged.addListener(async (delta) => {
-  if (delta.id in downloads && delta.state) {
-    if (delta.state.current === 'complete') {
-      let info = downloads[delta.id];
-      URL.revokeObjectURL(info.url);
-      delete downloads[delta.id];
-      if (/\.html$/.test(info.filepath)) {
-        notify(T$('Download_Success', info.filepath));
-      }
-    } else if (delta.state.current === 'interrupted') {
-      let info = downloads[delta.id];
-      URL.revokeObjectURL(info.url);
-      delete downloads[delta.id];
-      notify(T$('Download_Failure', info.filepath));
-    }
-  }
-});
-
 browser.browserAction.onClicked.addListener(async (tab) => {
   // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Browser_support_for_JavaScript_APIs
   const BROWSER_VERSION_MAJOR = parseInt((await browser.runtime.getBrowserInfo()).version, 10);
@@ -127,10 +108,32 @@ browser.browserAction.onClicked.addListener(async (tab) => {
   const key = 'browserAction-' + tab.id;
 
   const date = new Date();
-  const jobs = [];
+  const jobs = new JobQueue();
   const object_ids = [];
   const object_urls = [];
 
+  const downloads = new Map();
+  downloads.promise = new Promise((resolve, reject) => {
+    downloads.resolve = resolve;
+    downloads.reject = reject;
+  });
+  const OnDownload$ = (delta) => {
+    if (delta.state && downloads.has(delta.id)) {
+      if (delta.state.current === 'complete') {
+        URL.revokeObjectURL(downloads.get(delta.id).url);
+        downloads.delete(delta.id);
+        if (downloads.size === 0) {
+          downloads.resolve();
+        }
+      } else if (delta.state.current === 'interrupted') {
+        URL.revokeObjectURL(downloads.get(delta.id).url);
+        downloads.reject();
+      }
+    }
+  };
+  browser.downloads.onChanged.addListener(OnDownload$);
+
+  let restoreScrollPosition = () => Promise.resolve();
   try {
     if (!(await mutex.lock(key, {retry: false}))) {
       return;
@@ -177,18 +180,21 @@ browser.browserAction.onClicked.addListener(async (tab) => {
     console.info({use_native, use_css_croll, use_js_scroll, BROWSER_VERSION_MAJOR});
 
     const js_scroll_restore = `window.scrollTo(${sx + spx}, ${sy + spy})`;
-    const css_animation = {
+    const css_reset = {
       allFrames: true,
       runAt: 'document_start',
-      code: '*, *>*, *>*>* { animation-play-state: paused !important; }',
+      code: `
+        :root { min-width: 100vw !important; min-height: 100vh !important; }
+        *, *>*, *>*>* { animation-play-state: paused !important; }
+      `,
     };
     if (BROWSER_VERSION_MAJOR >= 53) {
-      css_animation.cssOrigin = 'user';
+      css_reset.cssOrigin = 'user';
     }
 
     let resetScrollPosition = () => {
       // TODO: stop js and svg animation
-      return browser.tabs.insertCSS(tab.id, css_animation).then(() => {
+      return browser.tabs.insertCSS(tab.id, css_reset).then(() => {
         // reset position of sticky elements
         return browser.tabs.executeScript(tab.id, {
           runAt: 'document_start',
@@ -196,21 +202,21 @@ browser.browserAction.onClicked.addListener(async (tab) => {
         });
       });
     };
-    let restoreScrollPosition = () => {
-      restoreScrollPosition = () => {};
-      return browser.tabs.removeCSS(tab.id, css_animation).then(() => {
+    let updateScrollPosition = null;
+
+    restoreScrollPosition = () => {
+      restoreScrollPosition = () => Promise.resolve();
+      return browser.tabs.removeCSS(tab.id, css_reset).then(() => {
         return browser.tabs.executeScript(tab.id, {
           runAt: 'document_start',
           code: js_scroll_restore,
         });
       });
     };
-    let updateScrollPosition = null;
-
     if (use_css_croll) {
-      let tasks = [() => browser.tabs.removeCSS(tab.id, css_animation)];
+      let tasks = [() => browser.tabs.removeCSS(tab.id, css_reset)];
       restoreScrollPosition = () => {
-        restoreScrollPosition = () => {};
+        restoreScrollPosition = () => Promise.resolve();
         return Promise.all(tasks.map(exec => exec())).then(() => {
           return browser.tabs.executeScript(tab.id, {
             runAt: 'document_start',
@@ -354,10 +360,8 @@ browser.browserAction.onClicked.addListener(async (tab) => {
     if (!use_native && mw * scale * mh * scale > limits[1]) {
       abort('canvas too large');
     }
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d', {alpha: false});
-    ctx.scale(scale, scale);
 
+    let decoding = new JobQueue();
     let grid = [];
     {
       if (badge) {
@@ -374,78 +378,92 @@ browser.browserAction.onClicked.addListener(async (tab) => {
           let w = (x + mw <= pw ? mw : pw - x);
           let _sx = dir.x > 0 ? x : Math.min(-(pw - x) + vw, vw - w);
           let _sy = dir.y > 0 ? y : Math.min(-(ph - y) + vh, vh - h);
-          let job = null, i = count++;
+          let i = count++;
           if (badge) {
-            await browserAction.setBadgeText({text: String(total--), tabId: tab.id});
+            jobs.push(() => browserAction.setBadgeText({
+              text: String(total--),
+              tabId: tab.id,
+            }));
           }
           if (use_native) {
             if (BROWSER_VERSION_MAJOR >= 82) {
-              job = browser.tabs.captureTab(tab.id, {
+              let opts = {
                 format: format[1],
                 quality: quality,
                 rect: {x: _sx, y: _sy, width: w, height: h},
                 scale: scale,
-              });
+              };
+              jobs.push(() => browser.tabs.captureTab(tab.id, opts));
             } else {
               // doesn't seem to support high dpi
-              job = browser.tabs.sendMessage(tab.id, {
+              let opts = {
                 type: 'DrawWindow',
                 format: format[2],
                 quality: quality,
                 rect: {x: _sx, y: _sy, width: w, height: h},
-              });
-            }
-            job = job.then(url => fetch(url))
-                     .then(res => res.blob())
-                     .then(blob => {
-                       object_urls[i] = URL.createObjectURL(blob);
-                     });
-          } else {
-            let pos = null, img = document.createElement('img');
-            img._decoded = img.decode ? {
-              then: (func) => img.decode().then(func),
-            } : new Promise((resolve, reject) => {
-              img.onload = function OnLoad$() {
-                return img.complete ? resolve() : setTimeout(OnLoad$, 0);
               };
-              img.onerror = reject;
-            });
-            pos = await updateScrollPosition(x, y, w, h);
-            if (BROWSER_VERSION_MAJOR >= 59) {
-              img.src = await browser.tabs.captureTab(tab.id, {
-                format: format[1],
-                quality: 100,
-              });
-            } else {
-              img.src = await browser.tabs.captureVisibleTab(tab.windowId, {
-                format: format[1],
-                quality: 100,
-              });
+              jobs.push(() => browser.tabs.sendMessage(tab.id, opts));
             }
-            job = img._decoded.then(() => new Promise(resolve => {
-              canvas.width = Math.trunc(w * scale);
-              canvas.height = Math.trunc(h * scale);
-              ctx.drawImage(img, pos.x * scale, pos.y * scale, w * scale, h * scale,
-                                             0,             0, w * scale, h * scale);
-              canvas.toBlob(blob => {
-                resolve(object_urls[i] = URL.createObjectURL(blob));
-              }, format[2], quality / 100);
-            }));
+            jobs.push(url => {
+              decoding.push(() => fetch(url).then(res => res.blob()).then(blob => {
+                object_urls[i] = URL.createObjectURL(blob);
+              }));
+            });
+          } else {
+            let pos = null, img = new Image();
+            let args = [x, y, w, h];
+            jobs.push(async () => pos = await updateScrollPosition(...args));
+            if (BROWSER_VERSION_MAJOR >= 59) {
+              jobs.push(() => browser.tabs.captureTab(tab.id, {
+                format: format[1],
+                quality: 100,
+              }));
+            } else {
+              jobs.push(() => browser.tabs.captureVisibleTab(tab.windowId, {
+                format: format[1],
+                quality: 100,
+              }));
+            }
+            jobs.push(url => {
+              decoding.push(() => {
+                img._decoded = img.decode ? {
+                  then: (func) => img.decode().then(func),
+                } : new Promise((resolve, reject) => {
+                  img.onload = function OnLoad$() {
+                    return img.complete ? resolve() : setTimeout(OnLoad$, 0);
+                  };
+                  img.onerror = reject;
+                });
+                img.src = url;
+                return img._decoded.then(() => new Promise(resolve => {
+                  let [w, h] = args.slice(2, 4);
+                  let canvas = document.createElement('canvas');
+                  let ctx = canvas.getContext('2d', {alpha: false});
+                  ctx.scale(scale, scale);
+                  canvas.width = Math.trunc(w * scale);
+                  canvas.height = Math.trunc(h * scale);
+                  ctx.drawImage(img, pos.x * scale, pos.y * scale, w * scale, h * scale,
+                                                 0,             0, w * scale, h * scale);
+                  canvas.toBlob(blob => {
+                    resolve(object_urls[i] = URL.createObjectURL(blob));
+                  }, format[2], quality / 100);
+                }));
+              });
+            });
           }
-          jobs.push(job);
           row.push({w, h});
         }
         grid.push(row);
       }
+      await jobs.serial().then(restoreScrollPosition);
+    }
+    {
       if (badge) {
         await browserAction.setTitle({title: T$('Badge_Saving'), tabId: tab.id});
         await browserAction.setBadgeText({text: '...', tabId: tab.id});
         await browserAction.setBadgeBackgroundColor({color: 'green', tabId: tab.id});
       }
-      await restoreScrollPosition();
-    }
-    await Promise.all(jobs.splice(0));
-    {
+      await decoding.parallel();
       let count = 0;
       let len1 = 1 + (Math.log10(grid.length) | 0);
       for (let row of grid.keys()) {
@@ -458,21 +476,21 @@ browser.browserAction.onClicked.addListener(async (tab) => {
           let filename = `${number}.${format[0]}`;
           let filepath = `${basename}/${filename}`;
           let url = object_urls[count++];
-          jobs.push(
-            browser.downloads.download({
+          jobs.push(() => {
+            return browser.downloads.download({
               url: url,
               filename: filepath,
               saveAs: false,
             }).then(id => {
               object_ids.push(id);
-              downloads[id] = {url, filepath};
-            })
-          );
+              downloads.set(id, {url, filepath});
+            });
+          });
           grid[row][col].url = filename;
         }
       }
     }
-    await Promise.all(jobs.splice(0));
+    await jobs.parallel();
     {
       let url = URL.createObjectURL(CreateHTML$({
         title: info.title,
@@ -488,8 +506,17 @@ browser.browserAction.onClicked.addListener(async (tab) => {
         saveAs: false,
       }).then(id => {
         object_ids.push(id);
-        downloads[id] = {url, filepath};
+        downloads.set(id, {url, filepath});
       }).catch(abort);
+      let timer_id = setTimeout(() => {
+        downloads.reject(T$('Screenshot_Timeout', filepath));
+      }, 1000 * 60 * 5);
+      await downloads.promise.then(() => {
+        clearTimeout(timer_id);
+        notify(T$('Screenshot_Success', filepath));
+      }).catch(() => {
+        abort(new ExtensionError(T$('Screenshot_Failure', filepath)));
+      });
     }
   } catch (err) {
     console.error(err);
@@ -499,14 +526,17 @@ browser.browserAction.onClicked.addListener(async (tab) => {
       notify(T$('Error', err));
     }
     object_ids.forEach(id => {
-      delete downloads[id];
-      browser.downloads.cancel(id);
+      browser.downloads.cancel(id)
+      .then(() => browser.downloads.removeFile(id))
+      .catch(ignore);
     });
     object_urls.forEach(url => {
       URL.revokeObjectURL(url);
     });
-    await restoreScrollPosition();
+    restoreScrollPosition().catch(ignore);
   } finally {
+    browser.downloads.onChanged.removeListener(OnDownload$);
+    object_ids.forEach(id => browser.downloads.erase({id}).catch(ignore));
     if (await mutex.lock(key, {retry: false})) {
       if (badge) {
         await browserAction.setTitle({title: '', tabId: tab.id});
