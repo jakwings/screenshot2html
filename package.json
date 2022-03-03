@@ -1,0 +1,13 @@
+{
+  "webExt": {
+    "build": {
+      "filename": "screenshot2html.xpi"
+    },
+    "sign": {
+      "channel": "listed"
+    },
+    "ignoreFiles": [
+      "**/.*"
+    ]
+  }
+}

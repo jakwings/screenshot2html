@@ -3,13 +3,14 @@ Screenshot2HTML
 
 Take a full page screenshot and save it as a single page HTML file.
 
-![demo1](https://user-images.githubusercontent.com/23622455/150404321-54566da4-1039-4203-8561-85a28a6cea83.png)
+![demo 1](.github/demo-1.jpg)
 
-![demo2](https://user-images.githubusercontent.com/23622455/150522658-0db8b525-1a2f-4cf7-ac29-8ec9a3a9f7f2.png)
+![demo 2](.github/demo-2.jpg)
 
 Features:
 - unlimited capture area
 - images in PNG or JPEG format
+- selectable text embedded like PDF (TODO)
 - support for right-to-left scrolling
 - single HTML + images = maximum portability
 - support for even Firefox version 52
@@ -22,4 +23,12 @@ Hacking:
 - https://github.com/jakwings/screenshot2html/archive/refs/heads/master.zip
 - https://developer.mozilla.org/Add-ons/WebExtensions/Temporary_Installation_in_Firefox
 
-Localization: https://lusito.github.io/web-ext-translator/?gh=https://github.com/jakwings/screenshot2html
+Localization:
+- https://lusito.github.io/web-ext-translator/?gh=https://github.com/jakwings/screenshot2html
+
+Other useful tools:
+- https://github.com/jakwings/firefox-screenshot
+- https://github.com/iipc/awesome-web-archiving
+- https://github.com/webrecorder/pywb
+- https://github.com/internetarchive/warcprox
+- `wget --warc-file`

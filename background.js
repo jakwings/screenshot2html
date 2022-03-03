@@ -17,9 +17,12 @@ function CreateHTML$({title, url, grid, direction}) {
 :root {
   background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="rgb(255,255,255)"/><path d="m 5 0 5 5 -5 5 -5 -5 5 -5 z" fill="rgb(230,230,230)"/></svg>');
 }
-:root::after {
+pre, center {
+  position: relative;
+}
+pre::after {
   content: "";
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   width: 100%;
@@ -108,6 +111,7 @@ browser.browserAction.onClicked.addListener(async (tab) => {
   const key = 'browserAction-' + tab.id;
 
   const date = new Date();
+  const id = String(date.getTime());
   const jobs = new JobQueue();
   const object_ids = [];
   const object_urls = [];
@@ -160,7 +164,7 @@ browser.browserAction.onClicked.addListener(async (tab) => {
     // WTF: animation sucks your eyeballs out during multiple screen captures
     const info = await MeasurePage$(tab);
     const scale = BROWSER_VERSION_MAJOR >= 82 ? info.scale : 1;
-    const limits = [32767, 472907776].map(v => Math.trunc(v / scale));
+    const limits = [32767 / scale, 472907776 / (scale * scale)].map(Math.trunc);
 
     const {
       view: {width: vw, height: vh},
@@ -170,7 +174,7 @@ browser.browserAction.onClicked.addListener(async (tab) => {
     } = info;
 
     if (pw * ph > 4096 * 4096) {
-      notify(T$('Notice_Screenshot_Large', tab.title));
+      notify(T$('Notice_Screenshot_Large', tab.title), {id});
     }
 
     const use_native = (BROWSER_VERSION_MAJOR >= 82
@@ -345,11 +349,11 @@ browser.browserAction.onClicked.addListener(async (tab) => {
       //      happens when scale != window.devicePixelRatio ?
       //      test page: https://en.wikipedia.org/wiki/Firefox
       if (use_native) {
-        if (BROWSER_VERSION_MAJOR >= 82 && scale == window.devicePixelRatio) {
-          return [pw, ph].map(v => Math.min(v, limits[0]));
-        } else {
+        //if (BROWSER_VERSION_MAJOR >= 82 && scale == window.devicePixelRatio) {
+        //  return [pw, ph].map(v => Math.min(v, limits[0]));
+        //} else {
           return [Math.min(pw, limits[0], 4095), Math.min(ph, limits[0], 16383)];
-        }
+        //}
       } else {
         return [Math.min(vw, limits[0], 4095), Math.min(vh, limits[0], 16383)];
       }
@@ -357,7 +361,7 @@ browser.browserAction.onClicked.addListener(async (tab) => {
 
     // Maximum size is limited!
     // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/canvas#maximum_canvas_size
-    if (!use_native && mw * scale * mh * scale > limits[1]) {
+    if (!use_native && mw * mh > limits[1]) {
       abort('canvas too large');
     }
 
@@ -439,7 +443,6 @@ browser.browserAction.onClicked.addListener(async (tab) => {
                   let [w, h] = args.slice(2, 4);
                   let canvas = document.createElement('canvas');
                   let ctx = canvas.getContext('2d', {alpha: false});
-                  ctx.scale(scale, scale);
                   canvas.width = Math.trunc(w * scale);
                   canvas.height = Math.trunc(h * scale);
                   ctx.drawImage(img, pos.x * scale, pos.y * scale, w * scale, h * scale,
@@ -513,7 +516,7 @@ browser.browserAction.onClicked.addListener(async (tab) => {
       }, 1000 * 60 * 5);
       await downloads.promise.then(() => {
         clearTimeout(timer_id);
-        notify(T$('Screenshot_Success', filepath));
+        notify(T$('Screenshot_Success', filepath), {id});
       }).catch(() => {
         abort(new ExtensionError(T$('Screenshot_Failure', filepath)));
       });
@@ -521,9 +524,9 @@ browser.browserAction.onClicked.addListener(async (tab) => {
   } catch (err) {
     console.error(err);
     if (err instanceof ExtensionError) {
-      notify(String(err));
+      notify(String(err), {id});
     } else {
-      notify(T$('Error', err));
+      notify(T$('Error', err), {id});
     }
     object_ids.forEach(id => {
       browser.downloads.cancel(id)
