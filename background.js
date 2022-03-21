@@ -41,7 +41,7 @@ center, #images, #text {
   position: absolute;
   white-space: pre !important;
   overflow: visible;
-  /*color: red;*/
+  color: transparent;
 }
     </style>
   </head>
