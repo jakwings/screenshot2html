@@ -6,7 +6,13 @@
     "message": "Take a full page screenshot and save it as a single page HTML file."
   },
   "Option_URL": {
-    "message": "Include origin's URL in HTML file"
+    "message": "Embed origin's URL (http://...) in HTML file"
+  },
+  "Option_FILE_URI": {
+    "message": "Embed origin's file URI (file://...) in HTML file"
+  },
+  "Option_TEXT": {
+    "message": "Embed selectable text in HTML file"
   },
   "Option_JPEG": {
     "message": "Save screenshots in JPEG file format"

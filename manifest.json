@@ -18,13 +18,6 @@
       "background.js"
     ]
   },
-  "content_scripts": [
-    {
-      "js": [ "contentscript.js" ],
-      "run_at": "document_start",
-      "matches": [ "<all_urls>" ]
-    }
-  ],
   "options_ui": {
     "page": "options.html"
   },

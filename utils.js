@@ -30,7 +30,7 @@ function ignore() {
 }
 
 function notify(message = '', {title = T$('Extension_Name'), id = ''} = {}) {
-  return browser.notifications.create(id, {
+  return browser.notifications.create(String(id), {
     type: 'basic',
     title: title,
     message: String(message),
@@ -104,14 +104,14 @@ class JobQueue {
 // only works for timers and promises in the same page
 class Mutex {
   // timeout in milliseconds
-  constructor({lock_time = 1000 * 60, retry_interval = 1000}) {
+  constructor({lock_time = 1000 * 60, retry_interval = 1000} = {}) {
     Mutex.registry = Mutex.registry || Object.create(null);
     this.id = Object.create(null);
     this.lock_time = lock_time;
     this.retry_interval = retry_interval;
   }
 
-  lock(key, {retry = true}) {
+  lock(key, {retry = true} = {}) {
     let info = Mutex.registry[key], now = Date.now();
     if (info === undefined || info.id === this.id || info.deadline < now) {
       Mutex.registry[key] = {id: this.id, deadline: now + this.lock_time};
@@ -131,4 +131,26 @@ class Mutex {
       return false;
     }
   }
+}
+
+function executeContentScript(tab, file, request = {}) {
+  // uncomment the following line to enable a breakpoint for Firefox Debugger
+  //debugger
+  return fetch(browser.runtime.getURL(file)).then(response => {
+    return response.text();
+  }).then(code => {
+    return browser.tabs.executeScript(tab.id, {
+      code: code.replace(/\bBACKGROUND_REQUEST\b/, JSON.stringify(request)),
+      runAt: request.runAt || 'document_start',
+      allFrames: Boolean(request.allFrames),
+    });
+  }).then(result => {
+    if (result) {
+      return request.allFrames ? result : result[0];
+    }
+    return Promise.reject(result);
+  }).catch(err => {
+    console.error(err);
+    throw new ExtensionError(T$('Error_Invalid', tab.title, tab.url));
+  });
 }

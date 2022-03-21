@@ -10,7 +10,7 @@ Take a full page screenshot and save it as a single page HTML file.
 Features:
 - unlimited capture area
 - images in PNG or JPEG format
-- selectable text embedded like PDF (TODO)
+- selectable text embedded like PDF (basic support)
 - support for right-to-left scrolling
 - single HTML + images = maximum portability
 - support for even Firefox version 52

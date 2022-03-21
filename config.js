@@ -4,6 +4,7 @@ const Config = {
 
   defaults: {
     url: false,
+    file_uri: false,
     jpeg: false,
     quality: 80,
   },

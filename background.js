@@ -1,13 +1,13 @@
 'use strict';
 
-function CreateHTML$({title, url, grid, direction}) {
+function CreateHTML$({title, uri, grid, text, direction}) {
   return new Blob([
 `<!DOCTYPE html>
 <html dir="${direction}">
   <head>
     <meta charset="utf-8">
     <title>${HtmlEscape$(title)}</title>
-    <link rel="canonical" href="${HtmlEscape$(url)}">
+    <link rel="canonical" href="${HtmlEscape$(uri)}">
     <style>
 * {
   margin: 0;
@@ -17,10 +17,13 @@ function CreateHTML$({title, url, grid, direction}) {
 :root {
   background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="rgb(255,255,255)"/><path d="m 5 0 5 5 -5 5 -5 -5 5 -5 z" fill="rgb(230,230,230)"/></svg>');
 }
-pre, center {
+center, #images, #text {
   position: relative;
 }
-pre::after {
+#images {
+  white-space: pre !important;
+}
+#images::after {
   content: "";
   position: absolute;
   top: 0;
@@ -28,11 +31,23 @@ pre::after {
   width: 100%;
   height: 100%;
 }
+#text {
+  margin-top: ${-text.height || 0}px;
+  width: ${text.width || 0}px;
+  height: ${text.height || 0}px;
+  overflow: hidden;
+}
+#text * {
+  position: absolute;
+  white-space: pre !important;
+  overflow: visible;
+  /*color: red;*/
+}
     </style>
   </head>
   <body>
     <center>
-<pre>
+<pre id="images">
 `,
     grid.map(row => {
       let html = row.map(i => {
@@ -45,57 +60,16 @@ pre::after {
     }).join('\n'),
 `
 </pre>
+<pre id="text">
+`,
+    text.contents || '',
+`
+</pre>
     </center>
   </body>
 </html>
 `
   ], {type: 'text/html'});
-}
-
-// https://www.w3.org/TR/2016/WD-cssom-view-1-20160317/#dom-element-clientheight
-// https://www.w3.org/TR/2016/WD-cssom-view-1-20160317/#dom-document-scrollingelement
-// https://dom.spec.whatwg.org/#dom-document-compatmode
-async function MeasurePage$(tab) {
-  // TODO: take a screenshot of an iframe or any scrolling element
-  return browser.tabs.executeScript(tab.id, {
-    runAt: 'document_start',
-    code: `{
-      const root = document.documentElement;
-      const page = document.scrollingElement || root;
-      const {scrollWidth: sw, scrollHeight: sh} = root;
-      const {clientWidth: cw, clientHeight: ch} = page;
-      const {innerWidth: ww, innerHeight: wh} = window;
-      const {scrollX: sx, scrollY: sy} = window;
-      const [_sx, _sy] = [sx, sy].map(Math.trunc);
-      const [spx, spy] = [sx - _sx, sy - _sy];
-      const [bw, bh] = [ww - cw, wh - ch];
-
-      ({
-        // tab.title is file:///* when the local html has no title set
-        title: document.title,
-        // direction of axis X/Y (Left2Right/Top2Bottom = 1; Right2Left/Bottom2Top = -1)
-        direction: {
-          x: sx < 0 || (window.scrollMaxX <= 0 && sw > cw) ? -1 : 1,
-          y: sy < 0 || (window.scrollMaxY <= 0 && sh > ch) ? -1 : 1,
-        },
-        // view width/height (excluding scrollbar width/height)
-        view: {width: cw, height: ch},
-        // page width/height
-        page: {width: (sw || ww), height: (sh || wh)},
-        // subpixel-precise decimal, negative when Right2Left or Bottom2Top
-        scroll: {sx: _sx, sy: _sy, spx, spy},
-        // scrollbar width/height
-        scrollbar: {width: bw, height: bh},
-        // https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio
-        scale: window.devicePixelRatio,
-      })
-    }`
-  }).then(result => {
-    return result ? result[0] : Promise.reject(result);
-  }).catch(err => {
-    console.error(err);
-    throw new ExtensionError(T$('Error_Invalid', tab.title, tab.url));
-  });
 }
 
 
@@ -111,7 +85,7 @@ browser.browserAction.onClicked.addListener(async (tab) => {
   const key = 'browserAction-' + tab.id;
 
   const date = new Date();
-  const id = String(date.getTime());
+  const nid = date.getTime();
   const jobs = new JobQueue();
   const object_ids = [];
   const object_urls = [];
@@ -162,7 +136,7 @@ browser.browserAction.onClicked.addListener(async (tab) => {
     ].join('');
 
     // WTF: animation sucks your eyeballs out during multiple screen captures
-    const info = await MeasurePage$(tab);
+    const info = await executeContentScript(tab, 'scripts/MeasurePage.js');
     const scale = BROWSER_VERSION_MAJOR >= 82 ? info.scale : 1;
     const limits = [32767 / scale, 472907776 / (scale * scale)].map(Math.trunc);
 
@@ -174,7 +148,7 @@ browser.browserAction.onClicked.addListener(async (tab) => {
     } = info;
 
     if (pw * ph > 4096 * 4096) {
-      notify(T$('Notice_Screenshot_Large', tab.title), {id});
+      notify(T$('Notice_Screenshot_Large', tab.title), {id: nid});
     }
 
     const use_native = (BROWSER_VERSION_MAJOR >= 82
@@ -366,13 +340,14 @@ browser.browserAction.onClicked.addListener(async (tab) => {
     }
 
     let decoding = new JobQueue();
-    let grid = [];
+    let grid = [], text = {};
     {
       if (badge) {
         await browserAction.setTitle({title: T$('Badge_Capturing'), tabId: tab.id});
         await browserAction.setBadgeBackgroundColor({color: 'red', tabId: tab.id});
       }
-      let total = Math.ceil(pw / mw) * Math.ceil(ph / mh), count = 0;
+      let total = Math.ceil(pw / mw) * Math.ceil(ph / mh);
+      let count = 0;
 
       await resetScrollPosition();
       for (let y = 0; y < ph; y += mh) {
@@ -384,10 +359,10 @@ browser.browserAction.onClicked.addListener(async (tab) => {
           let _sy = dir.y > 0 ? y : Math.min(-(ph - y) + vh, vh - h);
           let i = count++;
           if (badge) {
-            jobs.push(() => browserAction.setBadgeText({
-              text: String(total--),
-              tabId: tab.id,
-            }));
+            jobs.push(() => {
+              // no waiting since capturing is in serial order, unimportant text
+              browserAction.setBadgeText({text: String(total--), tabId: tab.id});
+            });
           }
           if (use_native) {
             if (BROWSER_VERSION_MAJOR >= 82) {
@@ -401,12 +376,11 @@ browser.browserAction.onClicked.addListener(async (tab) => {
             } else {
               // doesn't seem to support high dpi
               let opts = {
-                type: 'DrawWindow',
                 format: format[2],
                 quality: quality,
                 rect: {x: _sx, y: _sy, width: w, height: h},
               };
-              jobs.push(() => browser.tabs.sendMessage(tab.id, opts));
+              jobs.push(() => executeContentScript(tab, 'scripts/DrawWindow.js', opts));
             }
             jobs.push(url => {
               decoding.push(() => fetch(url).then(res => res.blob()).then(blob => {
@@ -458,6 +432,21 @@ browser.browserAction.onClicked.addListener(async (tab) => {
         }
         grid.push(row);
       }
+
+      if (config.text) {
+        jobs.push(() => {
+          if (badge) {
+            browserAction.setBadgeText({text: '0', tabId: tab.id});
+          }
+          return executeContentScript(tab, 'scripts/ExtractText.js', {
+            allFrames: false,
+          }).then(result => {
+            // TODO: all frames; limit iframes to visible area
+            text = result;
+          });
+        });
+      }
+
       await jobs.serial().then(restoreScrollPosition);
     }
     {
@@ -495,10 +484,14 @@ browser.browserAction.onClicked.addListener(async (tab) => {
     }
     await jobs.parallel();
     {
+      let title = info.title;
+      let uri = config.uri ? tab.url : '';
+      if (!config.file_uri) {
+        title = title.replace(/^file:.*/, '');
+        uri = uri.replace(/^file:.*/, '');
+      }
       let url = URL.createObjectURL(CreateHTML$({
-        title: info.title,
-        url: config.url ? tab.url : '',
-        grid: grid,
+        title, uri, grid, text,
         direction: dir.x > 0 ? 'ltr' : 'rtl',
       }));
       object_urls.push(url);
@@ -516,7 +509,7 @@ browser.browserAction.onClicked.addListener(async (tab) => {
       }, 1000 * 60 * 5);
       await downloads.promise.then(() => {
         clearTimeout(timer_id);
-        notify(T$('Screenshot_Success', filepath), {id});
+        notify(T$('Screenshot_Success', filepath), {id: nid});
       }).catch(() => {
         abort(new ExtensionError(T$('Screenshot_Failure', filepath)));
       });
@@ -524,9 +517,9 @@ browser.browserAction.onClicked.addListener(async (tab) => {
   } catch (err) {
     console.error(err);
     if (err instanceof ExtensionError) {
-      notify(String(err), {id});
+      notify(String(err), {id: nid});
     } else {
-      notify(T$('Error', err), {id});
+      notify(T$('Error', err), {id: nid});
     }
     object_ids.forEach(id => {
       browser.downloads.cancel(id)

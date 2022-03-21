@@ -3,7 +3,7 @@
 // https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawWindow
 // https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toDataURL
 // https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toBlob
-async function DrawWindow$(request) {
+/* async */ function DrawWindow$(request) {
   try {
     let canvas = document.createElement('canvas');
     let context = canvas.getContext('2d', {alpha: false});
@@ -33,10 +33,4 @@ async function DrawWindow$(request) {
 }
 
 
-// https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Content_scripts#communicating_with_background_scripts
-browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  switch (request.type) {
-    case 'DrawWindow': return DrawWindow$(request);
-  }
-  return false;
-});
+DrawWindow$(BACKGROUND_REQUEST)
