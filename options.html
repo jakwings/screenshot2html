@@ -3,27 +3,39 @@
   <head>
     <meta charset="utf-8">
     <title>Screenshot2HTML: Options</title>
+<style>
+.option > .option {
+  margin-left: 1em;
+}
+.option > input[type="checkbox"]:not(:checked) ~ .option {
+  display: none;
+}
+input[type="number"] {
+  width: 5em;
+  max-width: 10ex;
+}
+</style>
   </head>
   <body>
-    <div>•
+    <div class="option">•
       <input id="option_url" type="checkbox">
       <label for="option_url" i18n-text="Option_URL"></label>
+      <div class="option">•
+        <input id="option_file_uri" type="checkbox">
+        <label for="option_file_uri" i18n-text="Option_FILE_URI"></label>
+      </div>
     </div>
-    <div>•
-      <input id="option_file_uri" type="checkbox">
-      <label for="option_file_uri" i18n-text="Option_FILE_URI"></label>
-    </div>
-    <div>•
+    <div class="option">•
       <input id="option_text" type="checkbox">
       <label for="option_text" i18n-text="Option_TEXT"></label>
     </div>
-    <div>•
+    <div class="option">•
       <input id="option_jpeg" type="checkbox">
       <label for="option_jpeg" i18n-text="Option_JPEG"></label>
-    </div>
-    <div>•
-      <label for="option_quality" i18n-text="Option_JPEG_Quality"></label>
-      <input id="option_quality" type="number" min="1" max="100" step="1" required placeholder="80">
+      <div class="option">•
+        <label for="option_quality" i18n-text="Option_JPEG_Quality"></label>
+        <input id="option_quality" type="number" min="1" max="100" step="1" required placeholder="80">
+      </div>
     </div>
     <pre id="error" style="color: red"></pre>
     <script src="utils.js"></script>

@@ -9,7 +9,7 @@
     "message": "Embed origin's URL (http://...) in HTML file"
   },
   "Option_FILE_URI": {
-    "message": "Embed origin's file URI (file://...) in HTML file"
+    "message": "Embed origin's File URI (file://...) in HTML file"
   },
   "Option_TEXT": {
     "message": "Embed selectable text in HTML file"

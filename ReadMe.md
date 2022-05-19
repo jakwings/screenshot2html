@@ -32,3 +32,5 @@ Other useful tools:
 - https://github.com/webrecorder/pywb
 - https://github.com/internetarchive/warcprox
 - `wget --warc-file`
+
+Note: [ManifestV2 extension might not be permitted to be *signed* by Mozilla in the future](https://blog.mozilla.org/addons/2022/05/18/manifest-v3-in-firefox-recap-next-steps/), which could mean that legacy browsers (except for modified versions of Firefox) can't receive automatic updates of this extension.

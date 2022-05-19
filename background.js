@@ -123,7 +123,7 @@ browser.browserAction.onClicked.addListener(async (tab) => {
     // file extension, file type, mime type
     const format = config.jpeg ? ['jpg', 'jpeg', 'image/jpeg']
                                : ['png', 'png', 'image/png'];
-    const quality = config.jpeg ? Math.min(Math.max(config.quality, 1), 100) : 100;
+    const quality = config.jpeg ? config.quality : 100;
     const basename = [
       'Screenshot-',
       String(date.getFullYear()),
@@ -323,11 +323,11 @@ browser.browserAction.onClicked.addListener(async (tab) => {
       //      happens when scale != window.devicePixelRatio ?
       //      test page: https://en.wikipedia.org/wiki/Firefox
       if (use_native) {
-        //if (BROWSER_VERSION_MAJOR >= 82 && scale == window.devicePixelRatio) {
-        //  return [pw, ph].map(v => Math.min(v, limits[0]));
-        //} else {
+        if (false && BROWSER_VERSION_MAJOR >= 82 && scale == window.devicePixelRatio) {
+          return [pw, ph].map(v => Math.min(v, limits[0]));
+        } else {
           return [Math.min(pw, limits[0], 4095), Math.min(ph, limits[0], 16383)];
-        //}
+        }
       } else {
         return [Math.min(vw, limits[0], 4095), Math.min(vh, limits[0], 16383)];
       }
@@ -360,7 +360,7 @@ browser.browserAction.onClicked.addListener(async (tab) => {
           let i = count++;
           if (badge) {
             jobs.push(() => {
-              // no waiting since capturing is in serial order, unimportant text
+              // no waiting since capturing is in serial order; unimportant text
               browserAction.setBadgeText({text: String(total--), tabId: tab.id});
             });
           }
@@ -487,6 +487,7 @@ browser.browserAction.onClicked.addListener(async (tab) => {
       let title = info.title;
       let uri = config.uri ? tab.url : '';
       if (!config.file_uri) {
+        // TODO: detect :root>head>title ?
         title = title.replace(/^file:.*/, '');
         uri = uri.replace(/^file:.*/, '');
       }

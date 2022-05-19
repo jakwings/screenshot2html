@@ -11,6 +11,7 @@
 // + hidden ? (display:none hidden=true width*height=0 parent.hidden)
 // + ::before, ::after (window.getComputedStyle(element, '::before').content)
 // + <noscript>
+// + XHTML documents
 // sort by frame, position, z-index; sibling whitespace (Text.wholeText)
 
 function XQuery$(root, xpath) {
@@ -29,7 +30,7 @@ function IsHidden$(node, rects, style) {
   if (!(node.value || node.placeHolder || node.length)) {
     return true;
   }
-  if (style.userSelect == 'none') {
+  if (style.userSelect === 'none') {
     if (node.nodeType != document.ELEMENT_NODE) {
       return !node.parentElement.closest('button');
     }
