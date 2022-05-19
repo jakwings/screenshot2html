@@ -14,14 +14,13 @@ const Config = {
       for (let name in Config.defaults) {
         if (confs[name] == null) {
           confs[name] = Config.defaults[name];
-        } else {
-          switch (name) {
-            case 'quality':
-              confs.quality = Math.min(Math.max(confs.quality || 80, 1), 100);
-              break;
-            default:
-              confs[name] = Boolean(confs[name]);
-          }
+        }
+        switch (name) {
+          case 'quality':
+            confs.quality = Math.min(Math.max(confs.quality || 80, 1), 100);
+            break;
+          default:
+            confs[name] = Boolean(confs[name]);
         }
       }
       return confs;
