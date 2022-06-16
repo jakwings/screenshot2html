@@ -67,8 +67,17 @@ function TrimLine$(text, node, style) {
   return /^\s*$/.test(text) ? text : text + ' ';
 }
 
+function AddClass$(dom, map, name, style) {
+  if (!map.has(style)) {
+    map[name] = ((map[name] | 0) || 0) + 1;
+    map.set(style, [name, map[name]]);
+  }
+  let className = map.get(style).join('');
+  dom.setAttribute('class', (dom.getAttribute('class') || '') + ' ' + className);
+}
+
 function ExtractText$() {
-  let z = [];
+  let z = [], m = new Map();
   let xpath = '//node()[self::text() or self::input or self::textarea or self::select]';
   XQuery$(document, xpath).forEach(node => {
     let elm = node.nodeType != document.ELEMENT_NODE ? node.parentElement : node;
@@ -86,27 +95,43 @@ function ExtractText$() {
       let title = elm.closest('[title]');
       if (lang) s.lang = lang.lang;
       if (title) s.title = title.title;
-      s.style.top = (window.scrollY + rect.top) + 'px';
-      s.style.left = (window.scrollX + rect.left) + 'px';
-      s.style.width = Math.abs(rect.width) + 'px';
-      s.style.height = Math.abs(rect.height) + 'px';
+      s.setAttribute('style', [
+        `top:${(window.scrollY + rect.top).toFixed(0)}px`,
+        `width:${Math.abs(rect.width).toFixed(0)}px`,
+      ].join(';'));
+      //AddClass$(s, m, 'a', `top:${(window.scrollY + rect.top).toFixed(0)}px`);
+      AddClass$(s, m, 'b', `left:${(window.scrollX + rect.left).toFixed(0)}px`);
+      //AddClass$(s, m, 'c', `width:${Math.abs(rect.width).toFixed(0)}px`);
+      AddClass$(s, m, 'd', `height:${Math.abs(rect.height).toFixed(0)}px`);
       // XXX: would be unnecessary easier using javascript and css mix-blend-mode ...
-      s.style.fontFamily = style.fontFamily;
-      s.style.fontWeight = style.fontWeight;
-      s.style.fontSize = style.fontSize;
-      s.style.lineHeight = (style.lineHeight || '').replace(/^normal$/, '1.2');
+      AddClass$(s, m, 'e', `font-family:${style.fontFamily}`);
+      AddClass$(s, m, 'f', `font-weight:${style.fontWeight}`);
+      AddClass$(s, m, 'g', `font-size:${style.fontSize}`);
+      AddClass$(s, m, 'h', `line-height:${(style.lineHeight || '1.2').replace(/^normal$/, '1.2')}`);
+      s.setAttribute('class', s.getAttribute('class').trim());
       [s.textContent, offset] = NextLine$(rects, ++lino, node, offset);
       s.textContent = TrimLine$(s.textContent, node, style);
       z.push(s);
     }
   });
+  let style = document.createElement('style');
+  style.textContent = Array.from(m.entries()).sort((a, b) => {
+    return a[1][0] < b[1][0] ? -1
+         : a[1][0] > b[1][0] ? 1
+         : a[1][1] < b[1][1] ? -1
+         : a[1][1] > b[1][1] ? 1
+         : 0;
+  }).map(([style, data]) => {
+    return `.${data.join('')}{${style}}`;
+  }).join('\n');
   let root = document.documentElement;
   let {scrollWidth: sw, scrollHeight: sh} = root;
   let {innerWidth: ww, innerHeight: wh} = window;
   return {
     width: sw || ww,
     height: sh || wh,
-    contents: z.map(s => s.outerHTML).join(''),
+    style: style.outerHTML,
+    content: z.map(s => s.outerHTML).join('\n'),
   };
 }
 

@@ -104,21 +104,28 @@ class JobQueue {
 // only works for timers and promises in the same page
 class Mutex {
   // timeout in milliseconds
-  constructor({lock_time = 1000 * 60, retry_interval = 1000} = {}) {
+  constructor({lock_time = 0, retry_interval = 0} = {}) {
     Mutex.registry = Mutex.registry || Object.create(null);
     this.id = Object.create(null);
-    this.lock_time = lock_time;
-    this.retry_interval = retry_interval;
+    this.lock_time = (lock_time | 0) || (1000 * 60);
+    this.retry_interval = (retry_interval | 0) || 1000;
   }
 
-  lock(key, {retry = true} = {}) {
+  lock(key, {retry = true, lock_time = 0, retry_interval = 0} = {}) {
+    let opts = {
+      retry: Boolean(retry),
+      lock_time: (lock_time >= 1 ? (lock_time | 0) : this.lock_time),
+      retry_interval: (retry_interval >= 1 ? (retry_interval | 0) : this.retry_interval),
+    };
     let info = Mutex.registry[key], now = Date.now();
     if (info === undefined || info.id === this.id || info.deadline < now) {
-      Mutex.registry[key] = {id: this.id, deadline: now + this.lock_time};
+      Mutex.registry[key] = {id: this.id, deadline: now + opts.lock_time};
       return Promise.resolve(true);
     }
     return (retry === true || --retry >= 0) ? new Promise(resolve => {
-      setTimeout(() => this.lock(key, {retry}), this.retry_interval);
+      setTimeout(async () => {
+        resolve(await this.lock(key, opts));
+      }, opts.retry_interval);
     }) : Promise.resolve(false);
   }
 

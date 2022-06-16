@@ -17,7 +17,7 @@ const Config = {
         }
         switch (name) {
           case 'quality':
-            confs.quality = Math.min(Math.max(confs.quality || 80, 1), 100);
+            confs.quality = Math.min(Math.max((confs.quality | 0) || 80, 1), 100);
             break;
           default:
             confs[name] = Boolean(confs[name]);

@@ -60,11 +60,16 @@ center, #images, #text {
     }).join('\n'),
 `
 </pre>
-<pre id="text">
+<div id="text">
 `,
-    text.contents || '',
+    text.style || '',
+`
+<pre>
+`,
+    text.content || '',
 `
 </pre>
+</div>
     </center>
   </body>
 </html>
@@ -485,7 +490,7 @@ browser.browserAction.onClicked.addListener(async (tab) => {
     await jobs.parallel();
     {
       let title = info.title;
-      let uri = config.uri ? tab.url : '';
+      let uri = config.url ? tab.url : '';
       if (!config.file_uri) {
         // TODO: detect :root>head>title ?
         title = title.replace(/^file:.*/, '');

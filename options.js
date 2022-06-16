@@ -18,14 +18,18 @@
       let opt_id = box.id.replace(/^option_/, '');
       box.checked = cfg[opt_id];
       box.onchange = (event) => {
-        Config.set({[opt_id]: box.checked}).catch(ShowError$);
+        Config.set({[opt_id]: box.checked}).catch(abort);
       };
     });
     $$('input[type="number"]').forEach(async (box) => {
       let opt_id = box.id.replace(/^option_/, '');
       box.value = cfg[opt_id];
       box.onchange = (event) => {
-        Config.set({[opt_id]: parseInt(box.value, 10)}).catch(ShowError$);
+        Config.set({[opt_id]: parseInt(box.value, 10)}).catch(abort);
+        Config.get().then(obj => {
+          cfg = obj;
+          box.value = cfg[opt_id];
+        }).catch(abort);
       };
     });
   } catch (err) {
